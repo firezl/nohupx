@@ -1,0 +1,23 @@
+[package]
+name = "nohupx"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nohupx"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shellexpand = "3"
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
