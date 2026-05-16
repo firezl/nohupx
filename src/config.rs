@@ -44,6 +44,30 @@ type = "wecom"
 name = "example-wecom"
 enabled = false
 webhook = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
+
+[[notify.targets]]
+type = "dingtalk"
+name = "example-dingtalk"
+enabled = false
+webhook = "https://oapi.dingtalk.com/robot/send?access_token=xxxx"
+
+[[notify.targets]]
+type = "slack"
+name = "example-slack"
+enabled = false
+webhook = "https://hooks.slack.com/services/xxxx/yyyy/zzzz"
+
+[[notify.targets]]
+type = "discord"
+name = "example-discord"
+enabled = false
+webhook = "https://discord.com/api/webhooks/xxxx/yyyy"
+
+[[notify.targets]]
+type = "ntfy"
+name = "example-ntfy"
+enabled = false
+url = "https://ntfy.sh/your-topic"
 "#;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -134,6 +158,30 @@ pub enum NotifyTargetConfig {
         enabled: Option<bool>,
         webhook: String,
     },
+    #[serde(rename = "dingtalk")]
+    Dingtalk {
+        name: Option<String>,
+        enabled: Option<bool>,
+        webhook: String,
+    },
+    #[serde(rename = "slack")]
+    Slack {
+        name: Option<String>,
+        enabled: Option<bool>,
+        webhook: String,
+    },
+    #[serde(rename = "discord")]
+    Discord {
+        name: Option<String>,
+        enabled: Option<bool>,
+        webhook: String,
+    },
+    #[serde(rename = "ntfy")]
+    Ntfy {
+        name: Option<String>,
+        enabled: Option<bool>,
+        url: String,
+    },
     #[serde(rename = "telegram")]
     Telegram {
         name: Option<String>,
@@ -151,6 +199,10 @@ impl NotifyTargetConfig {
             Self::Webhook { .. } => "webhook",
             Self::Feishu { .. } => "feishu",
             Self::Wecom { .. } => "wecom",
+            Self::Dingtalk { .. } => "dingtalk",
+            Self::Slack { .. } => "slack",
+            Self::Discord { .. } => "discord",
+            Self::Ntfy { .. } => "ntfy",
             Self::Telegram { .. } => "telegram",
         }
     }
@@ -161,6 +213,10 @@ impl NotifyTargetConfig {
             | Self::Webhook { name, .. }
             | Self::Feishu { name, .. }
             | Self::Wecom { name, .. }
+            | Self::Dingtalk { name, .. }
+            | Self::Slack { name, .. }
+            | Self::Discord { name, .. }
+            | Self::Ntfy { name, .. }
             | Self::Telegram { name, .. } => name.as_deref(),
         }
     }
@@ -177,6 +233,10 @@ impl NotifyTargetConfig {
             | Self::Webhook { enabled, .. }
             | Self::Feishu { enabled, .. }
             | Self::Wecom { enabled, .. }
+            | Self::Dingtalk { enabled, .. }
+            | Self::Slack { enabled, .. }
+            | Self::Discord { enabled, .. }
+            | Self::Ntfy { enabled, .. }
             | Self::Telegram { enabled, .. } => enabled.unwrap_or(true),
         }
     }
@@ -258,7 +318,7 @@ mod tests {
     fn parses_default_config() {
         let cfg: Config = toml::from_str(DEFAULT_CONFIG).unwrap();
         assert_eq!(cfg.log.tail_lines, 80);
-        assert_eq!(cfg.notify.targets.len(), 4);
+        assert_eq!(cfg.notify.targets.len(), 8);
         assert!(!cfg.notify.targets[0].enabled());
     }
 

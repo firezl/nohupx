@@ -1,5 +1,9 @@
+pub mod dingtalk;
+pub mod discord;
 pub mod email;
 pub mod feishu;
+pub mod ntfy;
+pub mod slack;
 pub mod telegram;
 pub mod webhook;
 pub mod wecom;
@@ -44,6 +48,10 @@ pub fn send_target(target: &NotifyTargetConfig, msg: &NotifyMessage) -> anyhow::
         NotifyTargetConfig::Webhook { .. } => webhook::send(target, msg),
         NotifyTargetConfig::Feishu { .. } => feishu::send(target, msg),
         NotifyTargetConfig::Wecom { .. } => wecom::send(target, msg),
+        NotifyTargetConfig::Dingtalk { .. } => dingtalk::send(target, msg),
+        NotifyTargetConfig::Slack { .. } => slack::send(target, msg),
+        NotifyTargetConfig::Discord { .. } => discord::send(target, msg),
+        NotifyTargetConfig::Ntfy { .. } => ntfy::send(target, msg),
         NotifyTargetConfig::Telegram { .. } => telegram::send(target, msg),
     }
 }

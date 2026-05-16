@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use lettre::message::Mailbox;
 use lettre::transport::smtp::authentication::Credentials;
+use lettre::transport::smtp::SmtpTransportBuilder;
 use lettre::{Message, SmtpTransport, Transport};
 
 use crate::config::NotifyTargetConfig;
@@ -45,13 +46,41 @@ pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
         .body(msg.body.clone())
         .context("failed to build email message")?;
 
+    let port = smtp_port.unwrap_or(587);
     let creds = Credentials::new(username.clone(), password);
-    let mailer = SmtpTransport::starttls_relay(smtp_host)
-        .with_context(|| format!("failed to configure SMTP relay {smtp_host}"))?
-        .port(smtp_port.unwrap_or(587))
-        .credentials(creds)
-        .build();
+    let mailer = smtp_transport(smtp_host, port)?.credentials(creds).build();
 
     mailer.send(&email).context("failed to send email")?;
     Ok(())
+}
+
+fn smtp_transport(smtp_host: &str, port: u16) -> Result<SmtpTransportBuilder> {
+    let builder = if use_implicit_tls(port) {
+        SmtpTransport::relay(smtp_host)
+            .with_context(|| format!("failed to configure SMTPS relay {smtp_host}:{port}"))?
+    } else {
+        SmtpTransport::starttls_relay(smtp_host).with_context(|| {
+            format!("failed to configure STARTTLS SMTP relay {smtp_host}:{port}")
+        })?
+    };
+    Ok(builder.port(port))
+}
+
+fn use_implicit_tls(port: u16) -> bool {
+    port == 465
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn port_465_uses_implicit_tls() {
+        assert!(use_implicit_tls(465));
+    }
+
+    #[test]
+    fn port_587_uses_starttls() {
+        assert!(!use_implicit_tls(587));
+    }
 }
