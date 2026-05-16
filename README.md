@@ -47,6 +47,8 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
+You can also trigger the workflow from the GitHub Actions page with a tag input, or publish a GitHub Release from the web UI. The workflow will upload assets to the existing release if it already exists.
+
 The workflow uploads `.tar.gz` archives for Linux/macOS, a `.zip` archive for Windows, and SHA-256 checksum files.
 
 ## Quick Start
