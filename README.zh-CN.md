@@ -1,91 +1,91 @@
 # nohupx
 
-[简体中文](README.zh-CN.md)
+[English](README.md)
 
-`nohupx` is a lightweight nohup-like command runner with notifications.
-It runs long commands, saves complete logs, and sends the final result through configured channels such as email, generic webhooks, Feishu, WeCom, DingTalk, Slack, Discord, ntfy, and Telegram.
+`nohupx` 是一个轻量级的 nohup-like 命令运行器，内置任务结束通知。
+它会运行长命令、保存完整日志，并在命令结束后通过 email、通用 webhook、飞书、企业微信、钉钉、Slack、Discord、ntfy、Telegram 等渠道发送运行结果。
 
-It is a single Rust binary and does not depend on Apprise, Python, or external notification tools.
+`nohupx` 是单二进制 Rust CLI 工具，不依赖 Apprise、Python 或外部通知命令。
 
-## Installation
+## 安装
 
-Install the latest Linux x86_64 release:
+安装最新 Linux x86_64 Release：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/firezl/nohupx/main/scripts/install.sh | sh
 ```
 
-Install a specific version:
+安装指定版本：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/firezl/nohupx/main/scripts/install.sh | NOHUPX_VERSION=0.1.0 sh
 ```
 
-Install to a custom directory:
+安装到自定义目录：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/firezl/nohupx/main/scripts/install.sh | NOHUPX_INSTALL_DIR=/usr/local/bin sh
 ```
 
-Install from source:
+从源码安装：
 
 ```bash
 cargo install --path .
 ```
 
-Or build and copy the binary:
+或者手动构建并复制二进制：
 
 ```bash
 cargo build --release
 cp target/release/nohupx ~/.local/bin/
 ```
 
-## Release
+## 发布
 
-This repository includes a GitHub Actions release workflow. Push a version tag to build Linux, macOS, and Windows binaries and publish them to GitHub Releases:
+仓库内置 GitHub Actions release workflow。推送版本 tag 后，会自动构建 Linux、macOS、Windows 二进制并发布到 GitHub Releases：
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-You can also trigger the workflow from the GitHub Actions page with a tag input, or publish a GitHub Release from the web UI. The workflow will upload assets to the existing release if it already exists.
+也可以在 GitHub Actions 页面手动运行 workflow 并输入 tag，或者从 GitHub 页面发布 Release。若 Release 已存在，workflow 会把构建产物上传到已有 Release。
 
-The workflow uploads `.tar.gz` archives for Linux/macOS, a `.zip` archive for Windows, and SHA-256 checksum files.
+workflow 会上传 Linux/macOS 的 `.tar.gz`、Windows 的 `.zip`，以及 SHA-256 校验文件。
 
-## Quick Start
+## 快速开始
 
 ```bash
-# 1. Run once. nohupx will create default config automatically.
+# 1. 先运行一次。nohupx 会自动创建默认配置。
 nohupx -- echo hello
 
-# 2. Edit config.
+# 2. 编辑配置。
 vim ~/.config/nohupx/config.toml
 
-# 3. Test notification channel.
+# 3. 测试通知渠道。
 nohupx test email
 
-# 4. Run long command.
+# 4. 后台运行长命令。
 nohupx -d -- python train.py
 ```
 
-If no notification target is enabled, `nohupx` still runs commands and saves logs. It only skips sending notifications.
+如果没有启用任何通知 target，`nohupx` 仍然会正常运行命令并保存日志，只是不会发送通知。
 
-## Configuration
+## 配置
 
-Default config path:
+默认配置文件路径：
 
 ```text
 ~/.config/nohupx/config.toml
 ```
 
-Default log directory:
+默认日志目录：
 
 ```text
 ~/.local/state/nohupx/logs
 ```
 
-Example:
+配置示例：
 
 ```toml
 [run]
@@ -161,9 +161,9 @@ bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
 chat_id = "12345678"
 ```
 
-For email passwords and bot tokens, prefer environment variables such as `NOHUPX_SMTP_PASSWORD` and `NOHUPX_TELEGRAM_BOT_TOKEN`. Avoid writing secrets directly in `config.toml`, and do not commit your config file to a Git repository.
+建议使用 `NOHUPX_SMTP_PASSWORD`、`NOHUPX_TELEGRAM_BOT_TOKEN` 等环境变量保存邮箱密码或 bot token。不要把密钥明文提交到 Git 仓库。
 
-Email supports both common SMTP modes:
+email 支持常见 SMTP 模式：
 
 ```toml
 # STARTTLS
@@ -173,42 +173,42 @@ smtp_port = 587
 smtp_port = 465
 ```
 
-## Usage
+## 使用
 
-Foreground run:
+前台运行：
 
 ```bash
 nohupx -- python train.py
 nohupx run -- python train.py
 ```
 
-Detached run:
+后台运行：
 
 ```bash
 nohupx -d -- python train.py
 nohupx --name exp01 -d -- python run_exp.py
 ```
 
-Only notify on failure:
+只在失败时通知：
 
 ```bash
 nohupx --only-fail -- make build
 ```
 
-Disable notifications for one run:
+本次运行不发送通知：
 
 ```bash
 nohupx --no-notify -- python train.py
 ```
 
-Show recent logs:
+查看最近日志：
 
 ```bash
 nohupx logs
 nohupx logs -n 20
 ```
 
-Test notification channels:
+测试通知渠道：
 
 ```bash
 nohupx test email
@@ -224,8 +224,8 @@ nohupx test all
 nohupx test example-email --include-disabled
 ```
 
-The channel in `nohupx test <channel>` can be a target name or a target type, such as `email`, `webhook`, `feishu`, `wecom`, `dingtalk`, `slack`, `discord`, `ntfy`, or `telegram`. `nohupx test all` tests all enabled targets.
+`nohupx test <channel>` 里的 `channel` 可以是 target name，也可以是 target type，例如 `email`、`webhook`、`feishu`、`wecom`、`dingtalk`、`slack`、`discord`、`ntfy`、`telegram`。`nohupx test all` 会测试所有启用的 target。
 
-## Notes
+## 说明
 
-Detached mode is a lightweight background run mode, not a full process supervisor. For complex job management, use systemd, tmux, screen, Slurm, or a similar tool.
+detached 模式是轻量后台运行模式，不是完整的进程管理器。如果需要复杂任务管理，请使用 systemd、tmux、screen、Slurm 等工具。
