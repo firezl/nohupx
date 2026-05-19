@@ -21,6 +21,8 @@ type = "webhook"
 name = "example-webhook"
 enabled = false
 url = "https://example.com/notify"
+# url_secret = "webhook/main"
+# proxy = "http://127.0.0.1:7890"
 
 [[notify.targets]]
 type = "email"
@@ -29,6 +31,7 @@ enabled = false
 smtp_host = "smtp.example.com"
 smtp_port = 587
 username = "your@example.com"
+# password_secret = "email/password"
 password_env = "NOHUPX_SMTP_PASSWORD"
 from = "your@example.com"
 to = ["your@example.com"]
@@ -135,6 +138,7 @@ pub enum NotifyTargetConfig {
         smtp_host: String,
         smtp_port: Option<u16>,
         username: String,
+        password_secret: Option<String>,
         password_env: Option<String>,
         password: Option<String>,
         from: String,
@@ -144,51 +148,82 @@ pub enum NotifyTargetConfig {
     Webhook {
         name: Option<String>,
         enabled: Option<bool>,
-        url: String,
+        url: Option<String>,
+        url_secret: Option<String>,
+        url_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "feishu")]
     Feishu {
         name: Option<String>,
         enabled: Option<bool>,
-        webhook: String,
+        webhook: Option<String>,
+        webhook_secret: Option<String>,
+        webhook_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "wecom")]
     Wecom {
         name: Option<String>,
         enabled: Option<bool>,
-        webhook: String,
+        webhook: Option<String>,
+        webhook_secret: Option<String>,
+        webhook_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "dingtalk")]
     Dingtalk {
         name: Option<String>,
         enabled: Option<bool>,
-        webhook: String,
+        webhook: Option<String>,
+        webhook_secret: Option<String>,
+        webhook_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "slack")]
     Slack {
         name: Option<String>,
         enabled: Option<bool>,
-        webhook: String,
+        webhook: Option<String>,
+        webhook_secret: Option<String>,
+        webhook_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "discord")]
     Discord {
         name: Option<String>,
         enabled: Option<bool>,
-        webhook: String,
+        webhook: Option<String>,
+        webhook_secret: Option<String>,
+        webhook_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "ntfy")]
     Ntfy {
         name: Option<String>,
         enabled: Option<bool>,
-        url: String,
+        url: Option<String>,
+        url_secret: Option<String>,
+        url_env: Option<String>,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
     #[serde(rename = "telegram")]
     Telegram {
         name: Option<String>,
         enabled: Option<bool>,
+        bot_token_secret: Option<String>,
         bot_token_env: Option<String>,
         bot_token: Option<String>,
         chat_id: String,
+        proxy: Option<String>,
+        proxy_env: Option<String>,
     },
 }
 
@@ -238,6 +273,36 @@ impl NotifyTargetConfig {
             | Self::Discord { enabled, .. }
             | Self::Ntfy { enabled, .. }
             | Self::Telegram { enabled, .. } => enabled.unwrap_or(true),
+        }
+    }
+
+    pub fn proxy_parts(&self) -> (Option<&str>, Option<&str>) {
+        match self {
+            Self::Webhook {
+                proxy, proxy_env, ..
+            }
+            | Self::Feishu {
+                proxy, proxy_env, ..
+            }
+            | Self::Wecom {
+                proxy, proxy_env, ..
+            }
+            | Self::Dingtalk {
+                proxy, proxy_env, ..
+            }
+            | Self::Slack {
+                proxy, proxy_env, ..
+            }
+            | Self::Discord {
+                proxy, proxy_env, ..
+            }
+            | Self::Ntfy {
+                proxy, proxy_env, ..
+            }
+            | Self::Telegram {
+                proxy, proxy_env, ..
+            } => (proxy.as_deref(), proxy_env.as_deref()),
+            Self::Email { .. } => (None, None),
         }
     }
 }

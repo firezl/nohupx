@@ -5,7 +5,7 @@ use lettre::transport::smtp::SmtpTransportBuilder;
 use lettre::{Message, SmtpTransport, Transport};
 
 use crate::config::NotifyTargetConfig;
-use crate::notify::NotifyMessage;
+use crate::notify::{resolve_required_secret, NotifyMessage};
 
 pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
     let NotifyTargetConfig::Email {
@@ -13,6 +13,7 @@ pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
         smtp_port,
         username,
         password_env,
+        password_secret,
         password,
         from,
         to,
@@ -22,14 +23,12 @@ pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
         bail!("not an email target");
     };
 
-    let password = match password_env {
-        Some(var) => {
-            std::env::var(var).with_context(|| format!("environment variable {var} is not set"))?
-        }
-        None => password
-            .clone()
-            .context("email password is missing; set password_env or password")?,
-    };
+    let password = resolve_required_secret(
+        password.as_deref(),
+        password_env.as_deref(),
+        password_secret.as_deref(),
+        "email password",
+    )?;
 
     let mut builder = Message::builder()
         .from(

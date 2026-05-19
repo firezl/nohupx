@@ -161,7 +161,92 @@ bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
 chat_id = "12345678"
 ```
 
-建议使用 `NOHUPX_SMTP_PASSWORD`、`NOHUPX_TELEGRAM_BOT_TOKEN` 等环境变量保存邮箱密码或 bot token。不要把密钥明文提交到 Git 仓库。
+密钥有三种兼容的保存方式：
+
+- 直接写在 `config.toml` 明文字段中，例如 `password`、`bot_token`、`webhook` 或 `url`。这是最简单的方式。
+- 使用环境变量字段，例如 `password_env`、`bot_token_env`、`webhook_env`、`url_env`、`proxy_env`。这会继续兼容之前的 nohupx 配置，也适合 CI、容器和临时会话。
+- 使用 `*_secret` 引用系统 keyring。密钥会保存到 Windows Credential Manager、macOS Keychain 或 Linux keyutils。
+
+同一个值如果同时配置了多个来源，nohupx 按以下优先级读取：
+
+```text
+*_secret > *_env > 明文字段
+```
+
+支持的密钥字段：
+
+```text
+email 密码:         password_secret / password_env / password
+telegram token:    bot_token_secret / bot_token_env / bot_token
+webhook 类 URL:    webhook_secret / webhook_env / webhook
+generic webhook:   url_secret / url_env / url
+ntfy URL:          url_secret / url_env / url
+HTTP 代理:         proxy_env / proxy
+```
+
+保存密钥到系统 keyring：
+
+```bash
+nohupx secret set email/password
+nohupx secret set telegram/main
+nohupx secret set slack/lab
+```
+
+然后在配置中引用：
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_secret = "email/password"
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+```
+
+对于 HTTP webhook 类渠道，webhook URL 本身通常就是密钥：
+
+```toml
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_secret = "slack/lab"
+
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_secret = "telegram/main"
+chat_id = "12345678"
+```
+
+环境变量配置仍然完整支持：
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_env = "NOHUPX_SMTP_PASSWORD"
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
+chat_id = "12345678"
+```
+
+不要把明文密钥提交到 Git 仓库。
 
 email 支持常见 SMTP 模式：
 
@@ -171,6 +256,146 @@ smtp_port = 587
 
 # SMTPS / implicit TLS
 smtp_port = 465
+```
+
+HTTP 类通知渠道支持按 target 单独设置代理，适用于 `webhook`、`feishu`、`wecom`、`dingtalk`、`slack`、`discord`、`ntfy`、`telegram`。
+
+```toml
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
+chat_id = "12345678"
+proxy = "http://127.0.0.1:7890"
+
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_env = "NOHUPX_SLACK_WEBHOOK"
+proxy_env = "NOHUPX_PROXY"
+```
+
+代理字段刻意限制为环境变量或明文配置：
+
+```text
+proxy_env > proxy
+```
+
+SMTP email 暂不支持代理；它和 HTTP 通知后端使用的是不同的传输路径。
+
+### 各渠道配置帮助
+
+所有 target 都支持：
+
+```toml
+name = "target-name"
+enabled = true
+```
+
+HTTP 类 target 如需代理，可以使用 `proxy` 或 `proxy_env`：
+
+```toml
+proxy = "http://127.0.0.1:7890"
+proxy_env = "NOHUPX_PROXY"
+```
+
+Email：
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_secret = "email/password" # 或 password_env / password
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+```
+
+通用 webhook：
+
+```toml
+[[notify.targets]]
+type = "webhook"
+name = "my-webhook"
+enabled = true
+url_secret = "webhook/main" # 或 url_env / url
+```
+
+飞书：
+
+```toml
+[[notify.targets]]
+type = "feishu"
+name = "lab-feishu"
+enabled = true
+webhook_secret = "feishu/lab" # 或 webhook_env / webhook
+```
+
+企业微信：
+
+```toml
+[[notify.targets]]
+type = "wecom"
+name = "lab-wecom"
+enabled = true
+webhook_secret = "wecom/lab" # 或 webhook_env / webhook
+```
+
+钉钉：
+
+```toml
+[[notify.targets]]
+type = "dingtalk"
+name = "lab-dingtalk"
+enabled = true
+webhook_secret = "dingtalk/lab" # 或 webhook_env / webhook
+```
+
+Slack：
+
+```toml
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_secret = "slack/lab" # 或 webhook_env / webhook
+```
+
+Discord：
+
+```toml
+[[notify.targets]]
+type = "discord"
+name = "lab-discord"
+enabled = true
+webhook_secret = "discord/lab" # 或 webhook_env / webhook
+```
+
+ntfy：
+
+```toml
+[[notify.targets]]
+type = "ntfy"
+name = "phone-ntfy"
+enabled = true
+url_secret = "ntfy/topic" # 或 url_env / url
+```
+
+Telegram：
+
+```toml
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_secret = "telegram/main" # 或 bot_token_env / bot_token
+chat_id = "12345678"
+proxy_env = "NOHUPX_PROXY"
 ```
 
 ## 使用

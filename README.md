@@ -161,7 +161,92 @@ bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
 chat_id = "12345678"
 ```
 
-For email passwords and bot tokens, prefer environment variables such as `NOHUPX_SMTP_PASSWORD` and `NOHUPX_TELEGRAM_BOT_TOKEN`. Avoid writing secrets directly in `config.toml`, and do not commit your config file to a Git repository.
+Secrets can be stored in three compatible ways:
+
+- Plaintext fields in `config.toml`, such as `password`, `bot_token`, `webhook`, or `url`. This is the simplest option.
+- Environment variables such as `password_env`, `bot_token_env`, `webhook_env`, `url_env`, and `proxy_env`. This keeps compatibility with earlier nohupx configs and works well in CI, containers, and temporary sessions.
+- System keyring references via `*_secret`. This stores the secret in Windows Credential Manager, macOS Keychain, or Linux keyutils.
+
+When more than one source is configured for the same value, nohupx resolves it in this order:
+
+```text
+*_secret > *_env > plaintext field
+```
+
+Supported secret fields:
+
+```text
+email password:      password_secret / password_env / password
+telegram token:      bot_token_secret / bot_token_env / bot_token
+webhook-like URL:    webhook_secret / webhook_env / webhook
+generic webhook URL: url_secret / url_env / url
+ntfy URL:            url_secret / url_env / url
+HTTP proxy:          proxy_env / proxy
+```
+
+To save a secret in the system keyring:
+
+```bash
+nohupx secret set email/password
+nohupx secret set telegram/main
+nohupx secret set slack/lab
+```
+
+Then reference it from config:
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_secret = "email/password"
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+```
+
+For HTTP webhook-like targets, the webhook URL itself is often the secret:
+
+```toml
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_secret = "slack/lab"
+
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_secret = "telegram/main"
+chat_id = "12345678"
+```
+
+Environment variable config remains fully supported:
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_env = "NOHUPX_SMTP_PASSWORD"
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
+chat_id = "12345678"
+```
+
+Avoid committing plaintext secrets to Git repositories.
 
 Email supports both common SMTP modes:
 
@@ -171,6 +256,146 @@ smtp_port = 587
 
 # SMTPS / implicit TLS
 smtp_port = 465
+```
+
+HTTP-based notification targets support per-target proxies. This applies to `webhook`, `feishu`, `wecom`, `dingtalk`, `slack`, `discord`, `ntfy`, and `telegram`.
+
+```toml
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_env = "NOHUPX_TELEGRAM_BOT_TOKEN"
+chat_id = "12345678"
+proxy = "http://127.0.0.1:7890"
+
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_env = "NOHUPX_SLACK_WEBHOOK"
+proxy_env = "NOHUPX_PROXY"
+```
+
+Proxy fields are intentionally limited to environment variables or plaintext config:
+
+```text
+proxy_env > proxy
+```
+
+SMTP email proxying is not supported yet; SMTP uses a different transport path from the HTTP notification backends.
+
+### Channel Configuration
+
+All targets support:
+
+```toml
+name = "target-name"
+enabled = true
+```
+
+For HTTP-based targets, add either `proxy` or `proxy_env` when needed:
+
+```toml
+proxy = "http://127.0.0.1:7890"
+proxy_env = "NOHUPX_PROXY"
+```
+
+Email:
+
+```toml
+[[notify.targets]]
+type = "email"
+name = "my-email"
+enabled = true
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+username = "xxx@qq.com"
+password_secret = "email/password" # or password_env / password
+from = "xxx@qq.com"
+to = ["xxx@qq.com"]
+```
+
+Generic webhook:
+
+```toml
+[[notify.targets]]
+type = "webhook"
+name = "my-webhook"
+enabled = true
+url_secret = "webhook/main" # or url_env / url
+```
+
+Feishu:
+
+```toml
+[[notify.targets]]
+type = "feishu"
+name = "lab-feishu"
+enabled = true
+webhook_secret = "feishu/lab" # or webhook_env / webhook
+```
+
+WeCom:
+
+```toml
+[[notify.targets]]
+type = "wecom"
+name = "lab-wecom"
+enabled = true
+webhook_secret = "wecom/lab" # or webhook_env / webhook
+```
+
+DingTalk:
+
+```toml
+[[notify.targets]]
+type = "dingtalk"
+name = "lab-dingtalk"
+enabled = true
+webhook_secret = "dingtalk/lab" # or webhook_env / webhook
+```
+
+Slack:
+
+```toml
+[[notify.targets]]
+type = "slack"
+name = "team-slack"
+enabled = true
+webhook_secret = "slack/lab" # or webhook_env / webhook
+```
+
+Discord:
+
+```toml
+[[notify.targets]]
+type = "discord"
+name = "lab-discord"
+enabled = true
+webhook_secret = "discord/lab" # or webhook_env / webhook
+```
+
+ntfy:
+
+```toml
+[[notify.targets]]
+type = "ntfy"
+name = "phone-ntfy"
+enabled = true
+url_secret = "ntfy/topic" # or url_env / url
+```
+
+Telegram:
+
+```toml
+[[notify.targets]]
+type = "telegram"
+name = "my-telegram"
+enabled = true
+bot_token_secret = "telegram/main" # or bot_token_env / bot_token
+chat_id = "12345678"
+proxy_env = "NOHUPX_PROXY"
 ```
 
 ## Usage

@@ -10,6 +10,7 @@ const ROOT_AFTER_HELP: &str = r#"Examples:
   nohupx --name exp01 -d -- python run_exp.py
   nohupx logs
   nohupx test email
+  nohupx secret set telegram/main
   nohupx test all
 
 Config:
@@ -44,13 +45,26 @@ Supported target types include:
   email, webhook, feishu, wecom, dingtalk, slack, discord, ntfy, telegram
 "#;
 
+const SECRET_AFTER_HELP: &str = r#"Examples:
+  nohupx secret set telegram/main
+  nohupx secret set email/password --value 'smtp-auth-code'
+  nohupx secret get telegram/main --show
+  nohupx secret list
+  nohupx secret delete telegram/main
+
+Use *_secret fields in config.toml to reference saved secrets:
+  bot_token_secret = "telegram/main"
+  password_secret = "email/password"
+  webhook_secret = "slack/lab"
+"#;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "nohupx",
     version,
     about = "Run long commands like nohup and notify when they finish",
     long_about = "nohupx is a lightweight nohup-like command runner. It saves complete stdout/stderr logs, records exit status and duration, and sends completion notifications through configured channels.",
-    override_usage = "nohupx [OPTIONS] -- <COMMAND>...\n       nohupx run [OPTIONS] -- <COMMAND>...\n       nohupx logs [OPTIONS]\n       nohupx test <CHANNEL> [OPTIONS]",
+    override_usage = "nohupx [OPTIONS] -- <COMMAND>...\n       nohupx run [OPTIONS] -- <COMMAND>...\n       nohupx logs [OPTIONS]\n       nohupx test <CHANNEL> [OPTIONS]\n       nohupx secret <COMMAND>",
     after_help = ROOT_AFTER_HELP
 )]
 pub struct Cli {
@@ -96,6 +110,12 @@ pub enum Commands {
         after_help = TEST_AFTER_HELP
     )]
     Test(TestArgs),
+    #[command(
+        about = "Manage secrets in the system keyring",
+        long_about = "Save, read, list, and delete nohupx secrets in the system keyring. Config files can reference these values with *_secret fields.",
+        after_help = SECRET_AFTER_HELP
+    )]
+    Secret(SecretArgs),
     #[command(external_subcommand)]
     External(Vec<String>),
 }
@@ -171,4 +191,50 @@ pub struct TestArgs {
 
     #[arg(long, help = "Allow testing disabled targets")]
     pub include_disabled: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SecretArgs {
+    #[command(subcommand)]
+    pub command: SecretCommand,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SecretCommand {
+    #[command(about = "Save a secret in the system keyring")]
+    Set(SecretSetArgs),
+    #[command(about = "Read a secret from the system keyring")]
+    Get(SecretGetArgs),
+    #[command(about = "Delete a secret from the system keyring")]
+    Delete(SecretDeleteArgs),
+    #[command(about = "List known nohupx secret keys")]
+    List,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SecretSetArgs {
+    #[arg(value_name = "KEY", help = "Secret key, for example telegram/main")]
+    pub key: String,
+
+    #[arg(
+        long,
+        value_name = "VALUE",
+        help = "Secret value; omit to type it hidden"
+    )]
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SecretGetArgs {
+    #[arg(value_name = "KEY", help = "Secret key to read")]
+    pub key: String,
+
+    #[arg(long, help = "Print the secret value to stdout")]
+    pub show: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SecretDeleteArgs {
+    #[arg(value_name = "KEY", help = "Secret key to delete")]
+    pub key: String,
 }

@@ -10,11 +10,12 @@ pub mod wecom;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Error;
+use anyhow::{Context, Error, Result};
 use chrono::Local;
 
 use crate::cli::TestArgs;
 use crate::config::{Config, NotifyConfig, NotifyTargetConfig};
+use crate::secret;
 
 #[derive(Debug, Clone)]
 pub struct NotifyMessage {
@@ -54,6 +55,51 @@ pub fn send_target(target: &NotifyTargetConfig, msg: &NotifyMessage) -> anyhow::
         NotifyTargetConfig::Ntfy { .. } => ntfy::send(target, msg),
         NotifyTargetConfig::Telegram { .. } => telegram::send(target, msg),
     }
+}
+
+pub(crate) fn http_client(target: &NotifyTargetConfig) -> Result<reqwest::blocking::Client> {
+    let (proxy, proxy_env) = target.proxy_parts();
+    let proxy = resolve_optional_secret(proxy, proxy_env, None, "proxy URL")?;
+    let mut builder = reqwest::blocking::Client::builder();
+    if let Some(proxy) = proxy {
+        builder = builder.proxy(
+            reqwest::Proxy::all(&proxy)
+                .with_context(|| format!("invalid proxy URL for {}", target.display_name()))?,
+        );
+    }
+    builder.build().context("failed to build HTTP client")
+}
+
+pub(crate) fn resolve_required_secret(
+    inline: Option<&str>,
+    env: Option<&str>,
+    secret_key: Option<&str>,
+    label: &str,
+) -> Result<String> {
+    resolve_optional_secret(inline, env, secret_key, label)?.with_context(|| {
+        format!("missing {label}; set inline value, environment variable, or keyring secret")
+    })
+}
+
+pub(crate) fn resolve_optional_secret(
+    inline: Option<&str>,
+    env: Option<&str>,
+    secret_key: Option<&str>,
+    label: &str,
+) -> Result<Option<String>> {
+    if let Some(key) = secret_key {
+        return Ok(Some(secret::get(key).with_context(|| {
+            format!("failed to resolve {label} secret {key:?}")
+        })?));
+    }
+
+    if let Some(var) = env {
+        let value =
+            std::env::var(var).with_context(|| format!("environment variable {var} is not set"))?;
+        return Ok(Some(value));
+    }
+
+    Ok(inline.map(ToOwned::to_owned))
 }
 
 #[derive(Debug)]
@@ -176,6 +222,7 @@ mod tests {
                 smtp_host: "smtp.example.com".to_string(),
                 smtp_port: Some(587),
                 username: "u".to_string(),
+                password_secret: None,
                 password_env: None,
                 password: Some("p".to_string()),
                 from: "a@example.com".to_string(),
@@ -187,6 +234,7 @@ mod tests {
                 smtp_host: "smtp.example.com".to_string(),
                 smtp_port: Some(587),
                 username: "u".to_string(),
+                password_secret: None,
                 password_env: None,
                 password: Some("p".to_string()),
                 from: "a@example.com".to_string(),
@@ -195,7 +243,11 @@ mod tests {
             NotifyTargetConfig::Webhook {
                 name: Some("email".to_string()),
                 enabled: Some(true),
-                url: "https://example.com".to_string(),
+                url: Some("https://example.com".to_string()),
+                url_secret: None,
+                url_env: None,
+                proxy: None,
+                proxy_env: None,
             },
         ]
     }
@@ -231,5 +283,27 @@ mod tests {
         let matched = match_targets(&all, "disabled-email", true);
         assert_eq!(matched.targets.len(), 1);
         assert!(matched.disabled.is_empty());
+    }
+
+    #[test]
+    fn resolves_inline_secret() {
+        let value = resolve_required_secret(Some("secret"), None, None, "test").unwrap();
+        assert_eq!(value, "secret");
+    }
+
+    #[test]
+    fn resolves_secret_from_env_before_inline() {
+        let var = format!(
+            "NOHUPX_TEST_SECRET_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        std::env::set_var(&var, "from-env");
+        let value =
+            resolve_required_secret(Some("inline"), Some(&var), None, "test env secret").unwrap();
+        std::env::remove_var(&var);
+        assert_eq!(value, "from-env");
     }
 }

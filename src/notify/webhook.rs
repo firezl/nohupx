@@ -2,16 +2,27 @@ use anyhow::{bail, Context, Result};
 use serde_json::json;
 
 use crate::config::NotifyTargetConfig;
-use crate::notify::NotifyMessage;
+use crate::notify::{http_client, resolve_required_secret, NotifyMessage};
 
 pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
-    let NotifyTargetConfig::Webhook { url, .. } = target else {
+    let NotifyTargetConfig::Webhook {
+        url,
+        url_env,
+        url_secret,
+        ..
+    } = target
+    else {
         bail!("not a webhook target");
     };
+    let url = resolve_required_secret(
+        url.as_deref(),
+        url_env.as_deref(),
+        url_secret.as_deref(),
+        "webhook URL",
+    )?;
 
-    let client = reqwest::blocking::Client::new();
-    client
-        .post(url)
+    http_client(target)?
+        .post(&url)
         .json(&json!({
             "title": msg.title,
             "body": msg.body,
