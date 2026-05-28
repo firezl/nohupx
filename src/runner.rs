@@ -168,22 +168,34 @@ pub fn run_command(opts: RunOptions, config: &Config, config_path: &Path) -> Res
 
 fn maybe_notify(opts: &RunOptions, config: &Config, config_path: &Path, result: &RunResult) {
     if opts.no_notify {
+        record_notification_status(
+            result,
+            &["Notification skipped: --no-notify was set.".to_string()],
+        );
         return;
     }
 
     let only_fail = opts.only_fail.unwrap_or(config.notify.only_fail);
     if only_fail && result.success {
+        record_notification_status(
+            result,
+            &["Notification skipped: only_fail is enabled and the command succeeded.".to_string()],
+        );
         return;
     }
 
     if !config.notify.enabled {
         eprintln!("Notification disabled by config.");
+        record_notification_status(
+            result,
+            &["Notification skipped: notify.enabled is false.".to_string()],
+        );
         return;
     }
 
     if !config.notify.targets.iter().any(|target| target.enabled()) {
         eprintln!("No enabled notification targets. Skipped notification.");
-        eprintln!(
+        let edit_hint = format!(
             "Edit {} to enable one.",
             user_facing_path(
                 &opts
@@ -192,6 +204,14 @@ fn maybe_notify(opts: &RunOptions, config: &Config, config_path: &Path, result: 
                     .unwrap_or_else(|| config_path.to_path_buf())
             )
         );
+        eprintln!("{edit_hint}");
+        record_notification_status(
+            result,
+            &[
+                "Notification skipped: no enabled notification targets.".to_string(),
+                edit_hint,
+            ],
+        );
         return;
     }
 
@@ -199,10 +219,50 @@ fn maybe_notify(opts: &RunOptions, config: &Config, config_path: &Path, result: 
     let errors = notify::send_all(&config.notify, &msg);
     if !errors.is_empty() {
         eprintln!("Some notifications failed:");
+        let mut lines = vec!["Some notifications failed:".to_string()];
         for (target, err) in errors {
             eprintln!("- {target}: {err:#}");
+            lines.push(format!("- {target}: {err:#}"));
         }
+        record_notification_status(result, &lines);
+    } else {
+        let targets = config
+            .notify
+            .targets
+            .iter()
+            .filter(|target| target.enabled())
+            .map(|target| target.display_name())
+            .collect::<Vec<_>>()
+            .join(", ");
+        record_notification_status(
+            result,
+            &[format!("Notification sent to enabled targets: {targets}")],
+        );
     }
+}
+
+fn record_notification_status(result: &RunResult, lines: &[String]) {
+    if let Err(err) = append_notification_status(&result.log_path, lines) {
+        eprintln!("Failed to write notification status to log: {err:#}");
+    }
+}
+
+fn append_notification_status(log_path: &Path, lines: &[String]) -> Result<()> {
+    if lines.is_empty() {
+        return Ok(());
+    }
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .with_context(|| format!("failed to open log {}", log_path.display()))?;
+    writeln!(file)?;
+    writeln!(file, "--- nohupx notification ---")?;
+    for line in lines {
+        writeln!(file, "{line}")?;
+    }
+    Ok(())
 }
 
 fn build_command(args: &[String], shell: bool) -> Command {
@@ -301,5 +361,31 @@ impl NotifyMessage {
             duration_seconds: result.duration_seconds,
             log_path: result.log_path.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn appends_notification_status_to_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log_path = tmp.path().join("run.log");
+        fs::write(&log_path, "command output\n").unwrap();
+
+        append_notification_status(
+            &log_path,
+            &[
+                "Some notifications failed:".to_string(),
+                "- email: failed to send email".to_string(),
+            ],
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(&log_path).unwrap();
+        assert!(content.contains("--- nohupx notification ---"));
+        assert!(content.contains("Some notifications failed:"));
+        assert!(content.contains("- email: failed to send email"));
     }
 }
