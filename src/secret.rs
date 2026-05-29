@@ -49,8 +49,9 @@ fn init_store() -> Result<()> {
     {
         use std::collections::HashMap;
 
-        let store = linux_keyutils_keyring_store::Store::new_with_configuration(&HashMap::new())
-            .context("failed to initialize Linux keyutils keyring store")?;
+        let store =
+            zbus_secret_service_keyring_store::Store::new_with_configuration(&HashMap::new())
+                .context("failed to initialize Linux Secret Service keyring store")?;
         set_default_store(store);
     }
 

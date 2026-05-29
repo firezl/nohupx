@@ -165,7 +165,9 @@ Secrets can be stored in three compatible ways:
 
 - Plaintext fields in `config.toml`, such as `password`, `bot_token`, `webhook`, or `url`. This is the simplest option.
 - Environment variables such as `password_env`, `bot_token_env`, `webhook_env`, `url_env`, and `proxy_env`. This keeps compatibility with earlier nohupx configs and works well in CI, containers, and temporary sessions.
-- System keyring references via `*_secret`. This stores the secret in Windows Credential Manager, macOS Keychain, or Linux keyutils.
+- System keyring references via `*_secret`. This stores the secret in Windows Credential Manager, macOS Keychain, or Linux Secret Service.
+
+On Linux, `*_secret` requires a Secret Service provider such as GNOME Keyring or KWallet to be available in the run environment.
 
 When more than one source is configured for the same value, nohupx resolves it in this order:
 

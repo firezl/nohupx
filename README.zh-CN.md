@@ -165,7 +165,9 @@ chat_id = "12345678"
 
 - 直接写在 `config.toml` 明文字段中，例如 `password`、`bot_token`、`webhook` 或 `url`。这是最简单的方式。
 - 使用环境变量字段，例如 `password_env`、`bot_token_env`、`webhook_env`、`url_env`、`proxy_env`。这会继续兼容之前的 nohupx 配置，也适合 CI、容器和临时会话。
-- 使用 `*_secret` 引用系统 keyring。密钥会保存到 Windows Credential Manager、macOS Keychain 或 Linux keyutils。
+- 使用 `*_secret` 引用系统 keyring。密钥会保存到 Windows Credential Manager、macOS Keychain 或 Linux Secret Service。
+
+在 Linux 上，`*_secret` 需要运行环境中有可用的 Secret Service provider，例如 GNOME Keyring 或 KWallet。
 
 同一个值如果同时配置了多个来源，nohupx 按以下优先级读取：
 

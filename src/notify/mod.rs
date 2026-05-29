@@ -89,7 +89,9 @@ pub(crate) fn resolve_optional_secret(
 ) -> Result<Option<String>> {
     if let Some(key) = secret_key {
         return Ok(Some(secret::get(key).with_context(|| {
-            format!("failed to resolve {label} secret {key:?}")
+            format!(
+                "failed to resolve {label} secret {key:?}. If this happens in a detached/background run, the system keyring or Secret Service may not be accessible; use the matching *_env field or inline field for this target"
+            )
         })?));
     }
 
