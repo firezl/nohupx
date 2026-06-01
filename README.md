@@ -165,9 +165,9 @@ Secrets can be stored in three compatible ways:
 
 - Plaintext fields in `config.toml`, such as `password`, `bot_token`, `webhook`, or `url`. This is the simplest option.
 - Environment variables such as `password_env`, `bot_token_env`, `webhook_env`, `url_env`, and `proxy_env`. This keeps compatibility with earlier nohupx configs and works well in CI, containers, and temporary sessions.
-- System keyring references via `*_secret`. This stores the secret in Windows Credential Manager, macOS Keychain, or Linux Secret Service.
+- Encrypted local secret references via `*_secret`. This stores encrypted secrets in `~/.config/nohupx/secrets.json` using a local encryption key in `~/.config/nohupx/.secret_key`.
 
-On Linux, `*_secret` requires a Secret Service provider such as GNOME Keyring or KWallet to be available in the run environment.
+The encrypted secrets store uses ChaCha20-Poly1305. On Unix systems, nohupx sets the secrets directory to `0700` and the key/secrets files to `0600`.
 
 When more than one source is configured for the same value, nohupx resolves it in this order:
 
@@ -186,7 +186,7 @@ ntfy URL:            url_secret / url_env / url
 HTTP proxy:          proxy_env / proxy
 ```
 
-To save a secret in the system keyring:
+To save a secret in the encrypted secrets store:
 
 ```bash
 nohupx secret set email/password

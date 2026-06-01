@@ -165,9 +165,9 @@ chat_id = "12345678"
 
 - 直接写在 `config.toml` 明文字段中，例如 `password`、`bot_token`、`webhook` 或 `url`。这是最简单的方式。
 - 使用环境变量字段，例如 `password_env`、`bot_token_env`、`webhook_env`、`url_env`、`proxy_env`。这会继续兼容之前的 nohupx 配置，也适合 CI、容器和临时会话。
-- 使用 `*_secret` 引用系统 keyring。密钥会保存到 Windows Credential Manager、macOS Keychain 或 Linux Secret Service。
+- 使用 `*_secret` 引用本地加密 secrets store。密文保存在 `~/.config/nohupx/secrets.json`，本地加密 key 保存在 `~/.config/nohupx/.secret_key`。
 
-在 Linux 上，`*_secret` 需要运行环境中有可用的 Secret Service provider，例如 GNOME Keyring 或 KWallet。
+加密 secrets store 使用 ChaCha20-Poly1305。在 Unix 系统上，nohupx 会把 secrets 目录权限设为 `0700`，把 key/secrets 文件权限设为 `0600`。
 
 同一个值如果同时配置了多个来源，nohupx 按以下优先级读取：
 
@@ -186,7 +186,7 @@ ntfy URL:          url_secret / url_env / url
 HTTP 代理:         proxy_env / proxy
 ```
 
-保存密钥到系统 keyring：
+保存密钥到本地加密 secrets store：
 
 ```bash
 nohupx secret set email/password

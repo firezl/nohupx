@@ -111,8 +111,8 @@ pub enum Commands {
     )]
     Test(TestArgs),
     #[command(
-        about = "Manage secrets in the system keyring",
-        long_about = "Save, read, list, and delete nohupx secrets in the system keyring. Config files can reference these values with *_secret fields.",
+        about = "Manage encrypted nohupx secrets",
+        long_about = "Save, read, list, and delete nohupx secrets in the local encrypted secrets store. Config files can reference these values with *_secret fields.",
         after_help = SECRET_AFTER_HELP
     )]
     Secret(SecretArgs),
@@ -201,11 +201,11 @@ pub struct SecretArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum SecretCommand {
-    #[command(about = "Save a secret in the system keyring")]
+    #[command(about = "Save a secret in the encrypted secrets store")]
     Set(SecretSetArgs),
-    #[command(about = "Read a secret from the system keyring")]
+    #[command(about = "Read a secret from the encrypted secrets store")]
     Get(SecretGetArgs),
-    #[command(about = "Delete a secret from the system keyring")]
+    #[command(about = "Delete a secret from the encrypted secrets store")]
     Delete(SecretDeleteArgs),
     #[command(about = "List known nohupx secret keys")]
     List,

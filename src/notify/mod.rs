@@ -77,7 +77,7 @@ pub(crate) fn resolve_required_secret(
     label: &str,
 ) -> Result<String> {
     resolve_optional_secret(inline, env, secret_key, label)?.with_context(|| {
-        format!("missing {label}; set inline value, environment variable, or keyring secret")
+        format!("missing {label}; set inline value, environment variable, or encrypted secret")
     })
 }
 
@@ -90,7 +90,7 @@ pub(crate) fn resolve_optional_secret(
     if let Some(key) = secret_key {
         return Ok(Some(secret::get(key).with_context(|| {
             format!(
-                "failed to resolve {label} secret {key:?}. If this happens in a detached/background run, the system keyring or Secret Service may not be accessible; use the matching *_env field or inline field for this target"
+                "failed to resolve {label} secret {key:?}. Check the encrypted secrets store or use the matching *_env field or inline field for this target"
             )
         })?));
     }
