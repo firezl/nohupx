@@ -287,6 +287,72 @@ proxy_env > proxy
 
 SMTP email proxying is not supported yet; SMTP uses a different transport path from the HTTP notification backends.
 
+### Message Templates
+
+nohupx renders notification titles and bodies with [minijinja](https://github.com/mitsuhiko/minijinja). If you omit template config, the built-in defaults match the previous hardcoded messages exactly.
+
+Template merge priority (later layers override earlier ones):
+
+```text
+global [notify.templates.run|test]
+  → channel type [notify.templates.types.<type>]
+    → named preset template_preset = "minimal"
+      → target inline fields (title_template / body_template / attach_log / include_tail)
+```
+
+Example:
+
+```toml
+[notify.templates]
+max_attachment_bytes = 20971520
+
+[notify.templates.run]
+title = "{% if success %}✅{% else %}❌{% endif %} {% if display_name %}{{ display_name }}{% else %}Command{% endif %} {{ status }} on {{ host }}"
+body = """
+Name:
+{{ name }}
+
+Command:
+{{ command }}
+
+Exit code:
+{{ exit_code }}
+"""
+include_tail = true
+attach_log = false
+
+[notify.templates.test]
+title = "🔔 nohupx test notification"
+
+[notify.templates.types.email]
+attach_log = true
+
+[notify.templates.presets.minimal]
+run = { title = "{{ name }}: {{ status }}", body = "{{ command }}\nExit: {{ exit_code }}", include_tail = false }
+
+[[notify.targets]]
+type = "email"
+name = "my-email"
+template_preset = "minimal"
+title_template = "title override {{ name }}"
+attach_log = true
+```
+
+**Run variables**: `success`, `exit_code`, `name`, `command`, `host`, `duration_seconds`, `started_at`, `finished_at`, `log_path`, `tail`, `tail_lines`, `icon`, `status`, `action`, `display_name`
+
+**Test variables**: `host`, `now`, `config_path`, `target_name`, `target_type`, `target_label`, `is_test`
+
+**Attachments (`attach_log`)**: when enabled, nohupx tries to attach the full log file. Default size limit is 20MB (`max_attachment_bytes`); larger files are skipped with a stderr warning.
+
+| Channel | Attachment support |
+|---------|---------------------|
+| email | MIME attachment |
+| telegram | sendDocument |
+| discord | webhook multipart |
+| ntfy | multipart file |
+| webhook | adds `log_base64` and `log_filename` to JSON |
+| feishu / wecom / dingtalk / slack | not supported (warning + skip) |
+
 ### Channel Configuration
 
 All targets support:

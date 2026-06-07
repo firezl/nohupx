@@ -45,8 +45,9 @@ Main dependencies:
 - `toml`
 - `shellexpand`
 - `dirs`
-- `reqwest` blocking/json/rustls
+- `reqwest` blocking/json/rustls/multipart
 - `serde_json`
+- `minijinja`
 - `lettre`
 - `keyring-core`
 - platform keyring stores:
@@ -79,6 +80,8 @@ nohupx/
     ├── secret.rs
     └── notify/
         ├── mod.rs
+        ├── attachment.rs
+        ├── template.rs
         ├── email.rs
         ├── webhook.rs
         ├── feishu.rs
@@ -190,6 +193,36 @@ enabled = true
 If `enabled` is omitted, treat it as `true`.
 
 Default generated targets are all `enabled = false`.
+
+## Message Templates
+
+Notification text is rendered with minijinja before sending.
+
+Scenarios:
+
+- `run`: command completion notifications
+- `test`: `nohupx test` notifications
+
+Merge priority:
+
+```text
+builtin defaults
+  → [notify.templates.run|test]
+    → [notify.templates.types.<type>]
+      → template_preset
+        → target inline title_template/body_template/attach_log/include_tail
+```
+
+Key files:
+
+- `src/notify/template.rs`: context building, merge, render
+- `src/notify/attachment.rs`: log file attachment helper
+
+Attachment-capable channels: `email`, `telegram`, `discord`, `ntfy`, `webhook` (`log_base64`).
+
+IM webhook channels (`feishu`, `wecom`, `dingtalk`, `slack`) ignore `attach_log` and print a warning.
+
+Default attachment size limit: 20MB (`notify.templates.max_attachment_bytes`).
 
 ## Notification Channels
 
@@ -470,6 +503,8 @@ Current test coverage includes:
 - notification target matching
 - SMTP 465/587 mode selection
 - inline/env secret resolution
+- template rendering and merge priority
+- attachment size skip logic
 
 ## Important Design Decisions
 

@@ -2,9 +2,10 @@ use anyhow::{bail, Context, Result};
 use serde_json::json;
 
 use crate::config::NotifyTargetConfig;
-use crate::notify::{http_client, resolve_required_secret, NotifyMessage};
+use crate::notify::template::RenderedMessage;
+use crate::notify::{http_client, merged_text, resolve_required_secret};
 
-pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
+pub fn send(target: &NotifyTargetConfig, msg: &RenderedMessage) -> Result<()> {
     let NotifyTargetConfig::Slack {
         webhook,
         webhook_env,
@@ -21,7 +22,7 @@ pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
         "Slack webhook URL",
     )?;
 
-    let text = format!("{}\n\n{}", msg.title, msg.body);
+    let text = merged_text(msg);
     http_client(target)?
         .post(&webhook)
         .json(&json!({

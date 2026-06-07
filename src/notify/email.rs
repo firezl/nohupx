@@ -1,13 +1,20 @@
 use anyhow::{bail, Context, Result};
-use lettre::message::Mailbox;
+use lettre::message::header::ContentType;
+use lettre::message::{Attachment, Body, Mailbox, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::SmtpTransportBuilder;
 use lettre::{Message, SmtpTransport, Transport};
 
-use crate::config::NotifyTargetConfig;
-use crate::notify::{resolve_required_secret, NotifyMessage};
+use crate::config::{NotifyConfig, NotifyTargetConfig};
+use crate::notify::attachment::{read_log_attachment, AttachmentOutcome};
+use crate::notify::resolve_required_secret;
+use crate::notify::template::{max_attachment_bytes, RenderedMessage};
 
-pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
+pub fn send(
+    config: &NotifyConfig,
+    target: &NotifyTargetConfig,
+    msg: &RenderedMessage,
+) -> Result<()> {
     let NotifyTargetConfig::Email {
         smtp_host,
         smtp_port,
@@ -41,9 +48,40 @@ pub fn send(target: &NotifyTargetConfig, msg: &NotifyMessage) -> Result<()> {
             .parse::<Mailbox>()
             .with_context(|| format!("invalid recipient address {recipient}"))?);
     }
-    let email = builder
-        .body(msg.body.clone())
-        .context("failed to build email message")?;
+
+    let email = if msg.attach_log {
+        let attachment = match read_log_attachment(&msg.log_path, max_attachment_bytes(config))? {
+            AttachmentOutcome::Ready(attachment) => Some(attachment),
+            AttachmentOutcome::Skipped(reason) => {
+                eprintln!("Warning: {reason}");
+                None
+            }
+        };
+        if let Some(attachment) = attachment {
+            builder
+                .multipart(
+                    MultiPart::mixed()
+                        .singlepart(
+                            SinglePart::builder()
+                                .header(ContentType::TEXT_PLAIN)
+                                .body(Body::new(msg.body.clone())),
+                        )
+                        .singlepart(
+                            Attachment::new(attachment.filename)
+                                .body(attachment.bytes, ContentType::TEXT_PLAIN),
+                        ),
+                )
+                .context("failed to build email message with attachment")?
+        } else {
+            builder
+                .body(msg.body.clone())
+                .context("failed to build email message")?
+        }
+    } else {
+        builder
+            .body(msg.body.clone())
+            .context("failed to build email message")?
+    };
 
     let port = smtp_port.unwrap_or(587);
     let creds = Credentials::new(username.clone(), password);

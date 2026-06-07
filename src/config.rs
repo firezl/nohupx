@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -115,6 +116,8 @@ pub struct NotifyConfig {
     #[serde(default)]
     pub only_fail: bool,
     #[serde(default)]
+    pub templates: NotifyTemplatesConfig,
+    #[serde(default)]
     pub targets: Vec<NotifyTargetConfig>,
 }
 
@@ -123,9 +126,57 @@ impl Default for NotifyConfig {
         Self {
             enabled: true,
             only_fail: false,
+            templates: NotifyTemplatesConfig::default(),
             targets: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct NotifyTemplatesConfig {
+    #[serde(default = "default_max_attachment_bytes")]
+    pub max_attachment_bytes: u64,
+    #[serde(default)]
+    pub run: Option<TemplateScenarioConfig>,
+    #[serde(default)]
+    pub test: Option<TemplateScenarioConfig>,
+    #[serde(default)]
+    pub types: HashMap<String, TemplatePartialConfig>,
+    #[serde(default)]
+    pub presets: HashMap<String, TemplatePresetConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct TemplateScenarioConfig {
+    pub title: Option<String>,
+    pub body: Option<String>,
+    pub include_tail: Option<bool>,
+    pub attach_log: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct TemplatePartialConfig {
+    pub title: Option<String>,
+    pub body: Option<String>,
+    pub include_tail: Option<bool>,
+    pub attach_log: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct TemplatePresetConfig {
+    #[serde(default)]
+    pub run: Option<TemplateScenarioConfig>,
+    #[serde(default)]
+    pub test: Option<TemplateScenarioConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct TargetTemplateFields {
+    pub template_preset: Option<String>,
+    pub title_template: Option<String>,
+    pub body_template: Option<String>,
+    pub attach_log: Option<bool>,
+    pub include_tail: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -133,6 +184,8 @@ impl Default for NotifyConfig {
 pub enum NotifyTargetConfig {
     #[serde(rename = "email")]
     Email {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         smtp_host: String,
@@ -146,6 +199,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "webhook")]
     Webhook {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         url: Option<String>,
@@ -156,6 +211,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "feishu")]
     Feishu {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         webhook: Option<String>,
@@ -166,6 +223,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "wecom")]
     Wecom {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         webhook: Option<String>,
@@ -176,6 +235,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "dingtalk")]
     Dingtalk {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         webhook: Option<String>,
@@ -186,6 +247,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "slack")]
     Slack {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         webhook: Option<String>,
@@ -196,6 +259,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "discord")]
     Discord {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         webhook: Option<String>,
@@ -206,6 +271,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "ntfy")]
     Ntfy {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         url: Option<String>,
@@ -216,6 +283,8 @@ pub enum NotifyTargetConfig {
     },
     #[serde(rename = "telegram")]
     Telegram {
+        #[serde(flatten)]
+        template: TargetTemplateFields,
         name: Option<String>,
         enabled: Option<bool>,
         bot_token_secret: Option<String>,
@@ -274,6 +343,31 @@ impl NotifyTargetConfig {
             | Self::Ntfy { enabled, .. }
             | Self::Telegram { enabled, .. } => enabled.unwrap_or(true),
         }
+    }
+
+    pub fn template_fields(&self) -> &TargetTemplateFields {
+        match self {
+            Self::Email { template, .. }
+            | Self::Webhook { template, .. }
+            | Self::Feishu { template, .. }
+            | Self::Wecom { template, .. }
+            | Self::Dingtalk { template, .. }
+            | Self::Slack { template, .. }
+            | Self::Discord { template, .. }
+            | Self::Ntfy { template, .. }
+            | Self::Telegram { template, .. } => template,
+        }
+    }
+
+    pub fn supports_attachments(&self) -> bool {
+        matches!(
+            self,
+            Self::Email { .. }
+                | Self::Webhook { .. }
+                | Self::Telegram { .. }
+                | Self::Discord { .. }
+                | Self::Ntfy { .. }
+        )
     }
 
     pub fn proxy_parts(&self) -> (Option<&str>, Option<&str>) {
@@ -371,6 +465,12 @@ fn default_true() -> bool {
     true
 }
 
+pub const DEFAULT_MAX_ATTACHMENT_BYTES: u64 = 20 * 1024 * 1024;
+
+fn default_max_attachment_bytes() -> u64 {
+    DEFAULT_MAX_ATTACHMENT_BYTES
+}
+
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
@@ -378,6 +478,46 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_template_config() {
+        let content = r#"
+[notify.templates]
+max_attachment_bytes = 1048576
+
+[notify.templates.run]
+title = "run {{ status }}"
+attach_log = true
+
+[notify.templates.types.email]
+attach_log = true
+
+[notify.templates.presets.minimal]
+run = { title = "minimal", include_tail = false }
+
+[[notify.targets]]
+type = "email"
+name = "my-email"
+template_preset = "minimal"
+title_template = "override"
+smtp_host = "smtp.example.com"
+username = "u"
+from = "a@example.com"
+to = ["b@example.com"]
+"#;
+        let cfg: Config = toml::from_str(content).unwrap();
+        assert_eq!(cfg.notify.templates.max_attachment_bytes, 1048576);
+        assert_eq!(
+            cfg.notify.templates.run.as_ref().unwrap().title.as_deref(),
+            Some("run {{ status }}")
+        );
+        assert!(cfg.notify.templates.types["email"].attach_log.unwrap());
+        let target = &cfg.notify.targets[0];
+        assert_eq!(
+            target.template_fields().title_template.as_deref(),
+            Some("override")
+        );
+    }
 
     #[test]
     fn parses_default_config() {

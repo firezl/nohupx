@@ -11,7 +11,7 @@ use chrono::{DateTime, Local};
 use crate::cli::{RunArgs, RunFlags};
 use crate::config::{user_facing_path, Config};
 use crate::log;
-use crate::notify::{self, NotifyMessage};
+use crate::notify::{self, TemplateContext};
 
 #[derive(Debug, Clone)]
 pub struct RunOptions {
@@ -215,8 +215,8 @@ fn maybe_notify(opts: &RunOptions, config: &Config, config_path: &Path, result: 
         return;
     }
 
-    let msg = NotifyMessage::from_run_result(result);
-    let errors = notify::send_all(&config.notify, &msg);
+    let ctx = TemplateContext::from_run_result(result);
+    let errors = notify::send_all(&config.notify, &ctx);
     if !errors.is_empty() {
         eprintln!("Some notifications failed:");
         let mut lines = vec!["Some notifications failed:".to_string()];
@@ -326,42 +326,6 @@ fn hostname() -> String {
                 .filter(|s| !s.is_empty())
         })
         .unwrap_or_else(|| "unknown-host".to_string())
-}
-
-impl NotifyMessage {
-    pub fn from_run_result(result: &RunResult) -> Self {
-        let action = if result.success { "finished" } else { "failed" };
-        let icon = if result.success { "✅" } else { "❌" };
-        let title = if let Some(name) = &result.name {
-            format!("{icon} {name} {action} on {}", result.host)
-        } else {
-            format!("{icon} Command {action} on {}", result.host)
-        };
-        let display_name = result.name.as_deref().unwrap_or("-");
-        let body = format!(
-            "Name:\n{display_name}\n\nCommand:\n{}\n\nExit code:\n{}\n\nDuration:\n{}s\n\nStarted at:\n{}\n\nFinished at:\n{}\n\nHost:\n{}\n\nLog:\n{}\n\nLast {} lines:\n{}",
-            result.command,
-            result.exit_code,
-            result.duration_seconds,
-            result.started_at.format("%Y-%m-%d %H:%M:%S"),
-            result.finished_at.format("%Y-%m-%d %H:%M:%S"),
-            result.host,
-            result.log_path.display(),
-            result.tail_lines,
-            result.tail
-        );
-
-        Self {
-            title,
-            body,
-            success: result.success,
-            exit_code: result.exit_code,
-            command: result.command.clone(),
-            host: result.host.clone(),
-            duration_seconds: result.duration_seconds,
-            log_path: result.log_path.clone(),
-        }
-    }
 }
 
 #[cfg(test)]

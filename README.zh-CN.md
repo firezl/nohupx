@@ -287,6 +287,72 @@ proxy_env > proxy
 
 SMTP email 暂不支持代理；它和 HTTP 通知后端使用的是不同的传输路径。
 
+### 消息模板
+
+nohupx 使用 [minijinja](https://github.com/mitsuhiko/minijinja) 渲染通知标题和正文。未配置模板时，内置默认模板与旧版硬编码消息完全一致。
+
+模板合并优先级（后者覆盖前者）：
+
+```text
+全局 [notify.templates.run|test]
+  → 渠道类型 [notify.templates.types.<type>]
+    → 命名预设 template_preset = "minimal"
+      → target 内联字段（title_template / body_template / attach_log / include_tail）
+```
+
+配置示例：
+
+```toml
+[notify.templates]
+max_attachment_bytes = 20971520
+
+[notify.templates.run]
+title = "{% if success %}✅{% else %}❌{% endif %} {% if display_name %}{{ display_name }}{% else %}Command{% endif %} {{ status }} on {{ host }}"
+body = """
+Name:
+{{ name }}
+
+Command:
+{{ command }}
+
+Exit code:
+{{ exit_code }}
+"""
+include_tail = true
+attach_log = false
+
+[notify.templates.test]
+title = "🔔 nohupx test notification"
+
+[notify.templates.types.email]
+attach_log = true
+
+[notify.templates.presets.minimal]
+run = { title = "{{ name }}: {{ status }}", body = "{{ command }}\nExit: {{ exit_code }}", include_tail = false }
+
+[[notify.targets]]
+type = "email"
+name = "my-email"
+template_preset = "minimal"
+title_template = "仅覆盖标题 {{ name }}"
+attach_log = true
+```
+
+**Run 场景变量**：`success`, `exit_code`, `name`, `command`, `host`, `duration_seconds`, `started_at`, `finished_at`, `log_path`, `tail`, `tail_lines`, `icon`, `status`, `action`, `display_name`
+
+**Test 场景变量**：`host`, `now`, `config_path`, `target_name`, `target_type`, `target_label`, `is_test`
+
+**附件（attach_log）**：启用后会尝试附加完整日志文件。默认大小上限 20MB（`max_attachment_bytes`），超限则跳过并在 stderr 打印 warning。
+
+| 渠道 | 附件支持 |
+|------|----------|
+| email | MIME 附件 |
+| telegram | sendDocument |
+| discord | webhook multipart |
+| ntfy | multipart 文件 |
+| webhook | JSON 增加 `log_base64` 和 `log_filename` |
+| feishu / wecom / dingtalk / slack | 不支持（会 warning 并跳过） |
+
 ### 各渠道配置帮助
 
 所有 target 都支持：

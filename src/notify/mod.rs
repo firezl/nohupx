@@ -1,3 +1,4 @@
+pub mod attachment;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
@@ -5,55 +6,59 @@ pub mod feishu;
 pub mod ntfy;
 pub mod slack;
 pub mod telegram;
+pub mod template;
 pub mod webhook;
 pub mod wecom;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Error, Result};
 use chrono::Local;
 
 use crate::cli::TestArgs;
 use crate::config::{Config, NotifyConfig, NotifyTargetConfig};
+use crate::notify::template::{render_for_target, TemplateScenario};
 use crate::secret;
 
-#[derive(Debug, Clone)]
-pub struct NotifyMessage {
-    pub title: String,
-    pub body: String,
-    pub success: bool,
-    pub exit_code: i32,
-    pub command: String,
-    pub host: String,
-    pub duration_seconds: u64,
-    pub log_path: PathBuf,
-}
+pub use template::{RenderedMessage, TemplateContext};
 
-pub fn send_all(config: &NotifyConfig, msg: &NotifyMessage) -> Vec<(String, Error)> {
+pub fn send_all(config: &NotifyConfig, ctx: &TemplateContext) -> Vec<(String, Error)> {
     let mut errors = Vec::new();
     if !config.enabled {
         return errors;
     }
 
     for target in config.targets.iter().filter(|target| target.enabled()) {
-        if let Err(err) = send_target(target, msg) {
+        if let Err(err) = send_target(config, target, ctx, TemplateScenario::Run) {
             errors.push((target.display_name(), err));
         }
     }
     errors
 }
 
-pub fn send_target(target: &NotifyTargetConfig, msg: &NotifyMessage) -> anyhow::Result<()> {
+pub fn send_target(
+    config: &NotifyConfig,
+    target: &NotifyTargetConfig,
+    ctx: &TemplateContext,
+    scenario: TemplateScenario,
+) -> anyhow::Result<()> {
+    let rendered = render_for_target(config, target, ctx, scenario)?;
+    if rendered.attach_log && !target.supports_attachments() {
+        eprintln!(
+            "Warning: attach_log is enabled for {}, but this channel does not support attachments; attachment skipped",
+            target.display_name()
+        );
+    }
     match target {
-        NotifyTargetConfig::Email { .. } => email::send(target, msg),
-        NotifyTargetConfig::Webhook { .. } => webhook::send(target, msg),
-        NotifyTargetConfig::Feishu { .. } => feishu::send(target, msg),
-        NotifyTargetConfig::Wecom { .. } => wecom::send(target, msg),
-        NotifyTargetConfig::Dingtalk { .. } => dingtalk::send(target, msg),
-        NotifyTargetConfig::Slack { .. } => slack::send(target, msg),
-        NotifyTargetConfig::Discord { .. } => discord::send(target, msg),
-        NotifyTargetConfig::Ntfy { .. } => ntfy::send(target, msg),
-        NotifyTargetConfig::Telegram { .. } => telegram::send(target, msg),
+        NotifyTargetConfig::Email { .. } => email::send(config, target, &rendered),
+        NotifyTargetConfig::Webhook { .. } => webhook::send(config, target, &rendered),
+        NotifyTargetConfig::Feishu { .. } => feishu::send(target, &rendered),
+        NotifyTargetConfig::Wecom { .. } => wecom::send(target, &rendered),
+        NotifyTargetConfig::Dingtalk { .. } => dingtalk::send(target, &rendered),
+        NotifyTargetConfig::Slack { .. } => slack::send(target, &rendered),
+        NotifyTargetConfig::Discord { .. } => discord::send(config, target, &rendered),
+        NotifyTargetConfig::Ntfy { .. } => ntfy::send(config, target, &rendered),
+        NotifyTargetConfig::Telegram { .. } => telegram::send(config, target, &rendered),
     }
 }
 
@@ -102,6 +107,10 @@ pub(crate) fn resolve_optional_secret(
     }
 
     Ok(inline.map(ToOwned::to_owned))
+}
+
+pub(crate) fn merged_text(msg: &RenderedMessage) -> String {
+    format!("{}\n\n{}", msg.title, msg.body)
 }
 
 #[derive(Debug)]
@@ -179,22 +188,16 @@ pub fn run_test(config: &Config, config_path: &Path, args: &TestArgs) -> anyhow:
 
     for target in matched.targets {
         let target_label = format!("{}/{}", target.display_name(), target.type_name());
-        let msg = NotifyMessage {
-            title: "🔔 nohupx test notification".to_string(),
-            body: format!(
-                "This is a test notification from nohupx.\n\nHost:\n{host}\n\nTime:\n{}\n\nConfig:\n{}\n\nTarget:\n{target_label}",
-                now.format("%Y-%m-%d %H:%M:%S"),
-                config_path.display()
-            ),
-            success: true,
-            exit_code: 0,
-            command: "nohupx test".to_string(),
-            host: host.clone(),
-            duration_seconds: 0,
-            log_path: PathBuf::new(),
-        };
+        let ctx = TemplateContext::for_test(
+            &host,
+            &now.format("%Y-%m-%d %H:%M:%S").to_string(),
+            config_path,
+            &target.display_name(),
+            target.type_name(),
+            &target_label,
+        );
 
-        match send_target(target, &msg) {
+        match send_target(&config.notify, target, &ctx, TemplateScenario::Test) {
             Ok(()) => println!("OK: {}", target.display_name()),
             Err(err) => {
                 failed = true;
@@ -215,10 +218,12 @@ fn test_hostname() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::TargetTemplateFields;
 
     fn targets() -> Vec<NotifyTargetConfig> {
         vec![
             NotifyTargetConfig::Email {
+                template: TargetTemplateFields::default(),
                 name: Some("email-one".to_string()),
                 enabled: Some(true),
                 smtp_host: "smtp.example.com".to_string(),
@@ -231,6 +236,7 @@ mod tests {
                 to: vec!["b@example.com".to_string()],
             },
             NotifyTargetConfig::Email {
+                template: TargetTemplateFields::default(),
                 name: Some("disabled-email".to_string()),
                 enabled: Some(false),
                 smtp_host: "smtp.example.com".to_string(),
@@ -243,6 +249,7 @@ mod tests {
                 to: vec!["b@example.com".to_string()],
             },
             NotifyTargetConfig::Webhook {
+                template: TargetTemplateFields::default(),
                 name: Some("email".to_string()),
                 enabled: Some(true),
                 url: Some("https://example.com".to_string()),
